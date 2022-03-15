@@ -1,0 +1,48 @@
+variables:
+    CI_REGISTRY_TARGET_IMAGE: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}
+    PROJECT_NAME: helpdesk
+
+
+build image:
+  stage: build
+  image: docker:stable
+  services:
+    - docker:18.03-dind
+  tags: 
+    - docker
+  before_script:
+    - echo -n  $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+  script:
+    - docker build --force-rm --tag ${CI_REGISTRY_TARGET_IMAGE} .
+    - docker push ${CI_REGISTRY_TARGET_IMAGE}
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+
+deploy:
+  stage: deploy
+  image: registry.city-srv.ru/docker/base-ubuntu/ssh:20.04
+  tags:
+    - docker
+  allow_failure: false
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      # when: manual
+  environment:
+    name: production
+    url: http://slackbot1b.city-srv.ru/${PROJECT_NAME}/
+  resource_group: production
+  script:
+    - eval $(ssh-agent -s)
+    - echo "${SSH_PRIVATE_KEY}" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "${SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+    - ssh gitlab-runner@${DEPLOY_HOST} -- ${PROJECT_NAME} ${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA} ${DOCKER_USER} ${DOCKER_PASS} < <(env | grep '^APP_' | sed -e 's/^APP_//')
+
+include:
+  - project: 'public_city/infosec_public/common-pipeline'
+    file:
+      - '/template.yml' 

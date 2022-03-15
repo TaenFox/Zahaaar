@@ -1,0 +1,33 @@
+version: '3.4'
+
+services:
+  helpdesk:
+    container_name: helpdesk.local
+    image: registry.city-srv.ru/slack/slack-helpdesk:${VERSION}
+    networks:
+      - gate
+      - internal
+    volumes:
+      - ../service/certs/public/:/etc/ssl/certs/
+      - .logs/:/var/log/helpdesk/
+    env_file: .env
+    logging:
+      driver: json-file
+  helpdesk-backup:
+    container_name: helpdesk-backup.local
+    image: registry.city-srv.ru/slack/slack-helpdesk:${VERSION}
+    networks:
+      - gate
+      - internal
+    volumes:
+      - ../service/certs/public/:/etc/ssl/certs/
+      - .logs/:/var/log/helpdesk/
+    env_file: .env
+    logging:
+      driver: json-file
+
+networks:
+  gate:
+    external: true
+  internal:
+    internal: true
